@@ -1,0 +1,12 @@
+{% extends "_base.html" %}
+{% block title %}Настройки{% endblock %}
+{% block content %}
+<div class="card grid">
+  <h2 style="margin:0">Ставка и валюта</h2>
+  <form method="post" class="grid" style="max-width:420px; gap:12px">{% csrf_token %}
+    {{ form.as_p }}
+    <button class="btn" type="submit">Сохранить</button>
+  </form>
+  <p class="muted">Ставка используется для расчёта стоимости задач и отчётов.</p>
+</div>
+{% endblock %}
