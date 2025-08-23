@@ -1,4 +1,5 @@
 {% extends "_base.html" %}
+{% load static %}
 {% block title %}Чат{% endblock %}
 {% block content %}
 <div class="card">
@@ -13,6 +14,7 @@
         </div>
     </div>
     <form id="chat-form" class="row" autocomplete="off">
+        {% csrf_token %}
         <input id="chat-input" class="input" placeholder="Ваше сообщение…"/>
         <button class="btn" type="submit">Отправить</button>
     </form>

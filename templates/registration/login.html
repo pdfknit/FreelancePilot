@@ -1,0 +1,18 @@
+{% extends "_base.html" %}
+{% block title %}Вход{% endblock %}
+{% block content %}
+<div class="card" style="max-width:420px;margin:0 auto">
+  <h2 style="margin:0 0 12px">Вход</h2>
+  {% if form.errors %}
+    <div class="toast error show" role="alert" style="position:static;margin-bottom:12px">Неверный логин или пароль</div>
+  {% endif %}
+  <form method="post" class="grid" style="gap:12px">{% csrf_token %}
+    {{ form.username.label_tag }} {{ form.username }}
+    {{ form.password.label_tag }} {{ form.password }}
+    <button class="btn" type="submit">Войти</button>
+  </form>
+  <p class="muted" style="margin-top:12px">
+    Нет аккаунта? <a href="/accounts/signup/">Зарегистрируйтесь</a>
+  </p>
+</div>
+{% endblock %}

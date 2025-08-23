@@ -2,3 +2,5 @@
 /freelancePilot/__init__.py
 /config/__init__.py
 /freelancePilot/migrations/
+/chat/migrations/
+/tasks/migrations/

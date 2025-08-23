@@ -1,7 +1,10 @@
+from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.views.generic import TemplateView
+from django.urls import reverse_lazy
+from django.views.generic import TemplateView, FormView
 from django.shortcuts import redirect
 from .forms import RateForm
+
 
 class SettingsView(LoginRequiredMixin, TemplateView):
     template_name = "users/settings.html"
@@ -20,11 +23,18 @@ class SettingsView(LoginRequiredMixin, TemplateView):
         form = RateForm(request.POST)
         if form.is_valid():
             u = request.user
-            # ⚠️ у стандартного User пока нет полей hourly_rate/currency
-            # позже мы сделаем Profile-модель. Сейчас просто имитируем.
             setattr(u, "hourly_rate", form.cleaned_data["hourly_rate"])
             setattr(u, "currency", form.cleaned_data["currency"])
-            # u.save() вызовет ошибку, т.к. этих полей нет в базе,
-            # поэтому пока пропускаем сохранение.
+            # пропускаем сохранение.
             return redirect("/settings/?saved=1")
         return self.render_to_response(self.get_context_data(form=form))
+
+
+class SignupView(FormView):
+    template_name = "registration/signup.html"
+    form_class = UserCreationForm
+    success_url = reverse_lazy("login")  # после регистрации → на логин
+
+    def form_valid(self, form):
+        form.save()
+        return super().form_valid(form)
