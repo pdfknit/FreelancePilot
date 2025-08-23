@@ -7,6 +7,8 @@
     const form = $('#fpw-form');
     const input = $('#fpw-input');
 
+    let historyLoaded = false;
+
     function csrftoken() {
         return document.cookie.split('; ').find(r => r.startsWith('csrftoken='))?.split('=')[1];
     }
@@ -17,6 +19,7 @@
         div.innerHTML = `<b>${who}:</b> <span class="${cls}">${html}</span>`;
         log.appendChild(div);
         log.scrollTop = log.scrollHeight;
+        return div;
     }
 
     function addTyping() {
@@ -28,8 +31,23 @@
         return div;
     }
 
-    btn?.addEventListener('click', () => {
+    btn?.addEventListener('click', async () => {
         panel.classList.toggle('open');
+        if (panel.classList.contains('open') && !historyLoaded) {
+            try {
+                const r = await fetch('/api/chat/history/?limit=50');
+                const data = await r.json();
+                // убираем приветствие/плейсхолдер и рисуем сообщения
+                log.innerHTML = '';
+                (data.messages || []).forEach(m => {
+                    addMsg(m.role === 'user' ? 'Вы' : 'Бот', m.text);
+                });
+                historyLoaded = true; // чтобы больше не дергать сервер на этом визите
+            } catch (e) {
+                addMsg('Бот', 'Ошибка загрузки истории', 'err');
+            }
+        }
+
         if (panel.classList.contains('open')) input?.focus();
     });
     closeBtn?.addEventListener('click', () => panel.classList.remove('open'));
