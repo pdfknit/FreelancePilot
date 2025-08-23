@@ -23,9 +23,10 @@ class SettingsView(LoginRequiredMixin, TemplateView):
         form = RateForm(request.POST)
         if form.is_valid():
             u = request.user
-            setattr(u, "hourly_rate", form.cleaned_data["hourly_rate"])
-            setattr(u, "currency", form.cleaned_data["currency"])
-            # пропускаем сохранение.
+            if hasattr(u, "profile"):
+                u.profile.hourly_rate = form.cleaned_data["hourly_rate"]
+                u.profile.currency = form.cleaned_data["currency"]
+                u.profile.save(update_fields=["hourly_rate", "currency"])
             return redirect("/settings/?saved=1")
         return self.render_to_response(self.get_context_data(form=form))
 

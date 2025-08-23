@@ -7,16 +7,14 @@
     const form = $('#fpw-form');
     const input = $('#fpw-input');
 
-    let historyLoaded = false;
-
     function csrftoken() {
         return document.cookie.split('; ').find(r => r.startsWith('csrftoken='))?.split('=')[1];
     }
 
-    function addMsg(who, html, cls = '') {
+    function addMsg(who, html) {
         const div = document.createElement('div');
         div.className = 'fpw-msg';
-        div.innerHTML = `<b>${who}:</b> <span class="${cls}">${html}</span>`;
+        div.innerHTML = `<b>${who}:</b> ${html}`;
         log.appendChild(div);
         log.scrollTop = log.scrollHeight;
         return div;
@@ -31,39 +29,20 @@
         return div;
     }
 
-    btn?.addEventListener('click', async () => {
-        panel.classList.toggle('open');
-        if (panel.classList.contains('open') && !historyLoaded) {
-            try {
-                const r = await fetch('/api/chat/history/?limit=50');
-                const data = await r.json();
-                // убираем приветствие/плейсхолдер и рисуем сообщения
-                log.innerHTML = '';
-                (data.messages || []).forEach(m => {
-                    addMsg(m.role === 'user' ? 'Вы' : 'Бот', m.text);
-                });
-                historyLoaded = true; // чтобы больше не дергать сервер на этом визите
-            } catch (e) {
-                addMsg('Бот', 'Ошибка загрузки истории', 'err');
-            }
+    async function loadHistory() {
+        try {
+            const r = await fetch('/api/chat/history/', {credentials: 'same-origin'});
+            const data = await r.json();
+            log.innerHTML = '';
+            (data.messages || []).forEach(m => {
+                addMsg(m.role === 'user' ? 'Вы' : 'Бот', (m.text || '').replace(/\n/g, '<br>'));
+            });
+        } catch (e) {
+            addMsg('Бот', 'Не удалось загрузить историю');
         }
+    }
 
-        if (panel.classList.contains('open')) input?.focus();
-    });
-    closeBtn?.addEventListener('click', () => panel.classList.remove('open'));
-
-    // Закрытие Esc
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') panel.classList.remove('open');
-    });
-
-    // Отправка сообщения
-    form?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const text = (input.value || '').trim();
-        if (!text) return;
-        addMsg('Вы', text);
-        input.value = '';
+    async function sendMessage(text) {
         const typing = addTyping();
         try {
             const r = await fetch('/api/chat/message/', {
@@ -72,20 +51,34 @@
                     'Content-Type': 'application/json',
                     'X-CSRFToken': csrftoken()
                 },
-                body: JSON.stringify({message: text})
+                credentials: 'same-origin',
+                body: JSON.stringify({text: text, channel: 'widget'})
             });
             const data = await r.json();
-            if (r.status === 403) {
-                typing.remove();
-                addMsg('Бот', 'Пожалуйста, авторизуйтесь: /accounts/login/', 'err');
+            typing.remove();
+            if (!r.ok) {
+                addMsg('Бот', 'Ошибка: ' + (data.error || r.status));
                 return;
             }
-
+            addMsg('Бот', (data.reply || '').replace(/\n/g, '<br>'));
+        } catch (e) {
             typing.remove();
-            addMsg('Бот', data.reply || '(нет ответа)');
-        } catch (err) {
-            typing.remove();
-            addMsg('Бот', 'Ошибка сети. Попробуйте ещё раз.', 'err');
+            addMsg('Бот', 'Сеть недоступна');
         }
+    }
+
+    form?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const txt = (input?.value || '').trim();
+        if (!txt) return;
+        addMsg('Вы', txt);
+        input.value = '';
+        sendMessage(txt);
     });
+
+    btn?.addEventListener('click', () => {
+        panel?.classList.toggle('open');
+        if (panel?.classList.contains('open')) loadHistory();
+    });
+    closeBtn?.addEventListener('click', () => panel?.classList.remove('open'));
 })();
