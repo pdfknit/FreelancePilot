@@ -8,38 +8,44 @@
             <details>
                 <summary style="cursor:pointer"><b>Подсказки по командам</b> (раскрыть)</summary>
                 <div style="margin-top:10px; line-height:1.5">
-                    <div><code>add &lt;текст задачи&gt;</code> — создать черновую оценку</div>
-                    <div><code>estimate &lt;текст&gt;</code> — то же, синоним</div>
+                    <div><code>estimate &lt;текст&gt;</code> — получить оценку без сохранения</div>
+                    <div><code>да</code> / <code>нет</code> — после <code>estimate</code> создать задачу или отменить
+                    </div>
+                    <div><code>add &lt;текст задачи&gt;</code> — создать задачу c jetyrjq</div>
                     <div><code>rate 25</code> — задать ставку (в $/ч)</div>
                     <div><code>start &lt;task_id&gt;</code> — старт учёта времени</div>
                     <div><code>stop</code> — стоп учёта времени</div>
-                    <div><code>report week</code> — краткий отчёт за неделю (скоро)</div>
+                    <div><code>report week</code> — отчёт за неделю (есть и <code>report month</code>)</div>
+
                     <div style="margin-top:8px"><b>Примеры</b></div>
-                    <pre style="white-space:pre-wrap; margin:0">
-                        add лендинг с формой и интеграцией API
+                    <div><code>estimate лендинг с формой и интеграцией API
+                        add лендинг без оценки, просто черновик
                         rate 35
                         start 12
                         stop
-                    </pre>
+                        report week</code></div>
+                    <pre style="white-space:pre-wrap; margin:0"></pre>
                 </div>
+
             </details>
         </div>
+    </div>
 
-        <p class="muted" style="margin:0 0 12px">Например: <i>add сделать лендинг</i>, <i>rate 25</i>, <i>start 12</i>,
-            <i>stop</i>
-        </p>
-        <div id="chat-log" class="chat-box" aria-live="polite" aria-label="Диалог">
-            <div class="empty">
-                <div class="icon">🤖</div>
-                Привет! Я помогу оценить задачу и учесть время.<br>
-                Примеры: <i>add сделать лендинг</i>, <i>rate 25</i>, <i>start 12</i>, <i>stop</i>
-            </div>
+    <p class="muted" style="margin:0 0 12px">Например: <i>add сделать лендинг</i>, <i>rate 25</i>, <i>start 12</i>,
+        <i>stop</i>
+    </p>
+    <div id="chat-log" class="chat-box" aria-live="polite" aria-label="Диалог">
+        <div class="empty">
+            <div class="icon">🤖</div>
+            Привет! Я помогу оценить задачу и учесть время.<br>
+            Примеры: <i>add сделать лендинг</i>, <i>rate 25</i>, <i>start 12</i>, <i>stop</i>
         </div>
-        <form id="chat-form" class="row" autocomplete="off" data-channel="page">
-            {% csrf_token %}
-            <input id="chat-input" class="input" placeholder="Ваше сообщение…"/>
-            <button type="submit" class="btn">Отправить</button>
-        </form>
+    </div>
+    <form id="chat-form" class="row" autocomplete="off" data-channel="page">
+        {% csrf_token %}
+        <input id="chat-input" class="input" placeholder="Ваше сообщение…"/>
+        <button type="submit" class="btn">Отправить</button>
+    </form>
     </div>
     <script src="{% static 'js/chat.js' %}" defer></script>
 {% endblock %}

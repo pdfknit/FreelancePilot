@@ -372,3 +372,55 @@ code {
 .muted {
     color: #566;
 }
+
+
+/* мягкая подсветка сохранения */
+tr.saved {
+    background: #f4fff4;
+    transition: background .6s;
+}
+
+/* цвета статусов для бэйджа */
+.badge {
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    display: inline-block;
+}
+
+.status-badge.status-open {
+    background: #eef6ff;
+    color: #084c9e;
+}
+
+.status-badge.status-in_progress {
+    background: #fff7e6;
+    color: #8a5a00;
+}
+
+.status-badge.status-paused {
+    background: #f0f0f0;
+    color: #444;
+}
+
+.status-badge.status-done {
+    background: #e8f7ee;
+    color: #0f6b3c;
+}
+
+/* цвета строк по статусу (лёгкая полоса/фон) */
+.task-row.status-open {
+    border-left: 4px solid #87b6ff;
+}
+
+.task-row.status-in_progress {
+    border-left: 4px solid #ffb84d;
+}
+
+.task-row.status-paused {
+    border-left: 4px solid #bbb;
+}
+
+.task-row.status-done {
+    border-left: 4px solid #4cd07a;
+}
