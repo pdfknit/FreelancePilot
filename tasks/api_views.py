@@ -1,96 +1,104 @@
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
-from django.utils import timezone
-from django.shortcuts import get_object_or_404
-from django.conf import settings
+# tasks/api_views.py
+from __future__ import annotations
 
-from .models import Task, TimeEntry
-from .serializers import TaskCreateSerializer, TaskSerializer
+from django.conf import settings
+from django.utils import timezone
+from django.db.models import Sum
+from rest_framework import generics, status, views
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+from .models import Task, TimeEntry, Project
+from .serializers import TaskSerializer, TimeEntrySerializer
 from chat.services.estimator import estimate
 
 
-def _get_rate(user):
-    if hasattr(user, "profile") and user.profile.hourly_rate:
-        return user.profile.hourly_rate
-    return getattr(settings, 'DEFAULT_RATE', 25)
+class TaskListCreateApi(generics.ListCreateAPIView):
+    queryset = Task.objects.all().order_by("-created_at")
+    serializer_class = TaskSerializer
+
+    def perform_create(self, serializer):
+        task = serializer.save()
+        auto = self.request.query_params.get("auto_estimate") or self.request.data.get("auto_estimate")
+        if str(auto).lower() in {"1", "true", "yes"}:
+            rate = getattr(getattr(self.request.user, "userprofile", None), "hourly_rate", None) or 25
+            est = estimate(task.raw_text or task.title, hourly_rate=float(rate), confidence="M")
+            task.summary = est.summary
+            task.est_hours_min = est.est_hours_min
+            task.est_hours_max = est.est_hours_max
+            # task.est_confidence = est.est_confidence
+            task.est_cost = est.est_cost
+            task.save()
 
 
-class TaskListCreateApi(APIView):
-    permission_classes = [IsAuthenticated]
+class TaskEstimateApi(views.APIView):
+    def post(self, request, pk: int):
+        try:
+            task = Task.objects.get(pk=pk)
+        except Task.DoesNotExist:
+            return Response({"detail": "Task not found"}, status=404)
 
-    def get(self, request):
-        qs = Task.objects.all().order_by("-created_at")[:200]
-        return Response(TaskSerializer(qs, many=True).data)
-
-    def post(self, request):
-        ser = TaskCreateSerializer(data=request.data)
-        ser.is_valid(raise_exception=True)
-        obj = Task.objects.create(
-            project=ser.validated_data.get("project"),
-            title=ser.validated_data["title"],
-            raw_text=ser.validated_data.get("raw_text", ""),
-            status="open",
-        )
-        if ser.validated_data.get("auto_estimate"):
-            est = estimate(obj.raw_text, _get_rate(request.user))
-            obj.summary = est.summary
-            obj.est_hours_min = est.est_hours_min
-            obj.est_hours_max = est.est_hours_max
-            obj.est_confidence = est.confidence
-            obj.est_cost = est.est_cost
-            obj.save()
-        return Response(TaskSerializer(obj).data, status=201)
+        rate = getattr(getattr(request.user, "userprofile", None), "hourly_rate", None) or 25
+        conf = request.data.get("confidence", "M")
+        est = estimate(task.raw_text or task.title, hourly_rate=float(rate), confidence=conf)
+        task.summary = est.summary
+        task.est_hours_min = est.est_hours_min
+        task.est_hours_max = est.est_hours_max
+        task.est_confidence = est.est_confidence
+        task.est_cost = est.est_cost
+        task.save()
+        return Response(TaskSerializer(task).data, status=200)
 
 
-class TaskEstimateApi(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request, pk):
-        obj = get_object_or_404(Task, pk=pk)
-        est = estimate(obj.raw_text or obj.title, _get_rate(request.user))
-        obj.summary = est.summary
-        obj.est_hours_min = est.est_hours_min
-        obj.est_hours_max = est.est_hours_max
-        obj.est_confidence = est.confidence
-        obj.est_cost = est.est_cost
-        obj.save()
-        return Response(TaskSerializer(obj).data)
+@api_view(["POST"])
+def time_start(request):
+    task_id = request.data.get("task_id")
+    if not task_id:
+        return Response({"detail": "task_id required"}, status=400)
+    try:
+        task = Task.objects.get(pk=task_id)
+    except Task.DoesNotExist:
+        return Response({"detail": "Task not found"}, status=404)
+    entry = TimeEntry.objects.create(task=task, user=request.user, started_at=timezone.now())
+    return Response(TimeEntrySerializer(entry).data, status=201)
 
 
-class TimeStartApi(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request):
-        task_id = request.data.get("task_id")
-        task = get_object_or_404(Task, pk=task_id)
-        # закрыть незакрытые
-        TimeEntry.objects.filter(user=request.user, stopped_at__isnull=True).update(stopped_at=timezone.now())
-        te = TimeEntry.objects.create(task=task, user=request.user, started_at=timezone.now())
-        return Response({"ok": True, "time_entry_id": te.id})
-
-
-class TimeStopApi(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request):
-        te = TimeEntry.objects.filter(user=request.user, stopped_at__isnull=True).order_by("-started_at").first()
-        if not te:
-            return Response({"error": "no running timer"}, status=400)
-        te.stop(timezone.now())
-        return Response({"ok": True, "time_entry_id": te.id, "duration_sec": te.duration_sec})
+@api_view(["POST"])
+def time_stop(request):
+    entry = (
+        TimeEntry.objects.filter(user=request.user, stopped_at__isnull=True)
+        .order_by("-started_at")
+        .first()
+    )
+    if not entry:
+        return Response({"detail": "No running entry"}, status=400)
+    entry.stop(timezone.now())
+    return Response(TimeEntrySerializer(entry).data, status=200)
 
 
 class ReportSummaryApi(APIView):
-    permission_classes = [IsAuthenticated]
-
     def get(self, request):
-        # простой отчёт: суммарные секунды и стоимость за период (если не передан — за 30 дней)
-        from_dt = request.GET.get("from")
-        to_dt = request.GET.get("to")
-        qs = TimeEntry.objects.filter(user=request.user, stopped_at__isnull=False)
-        # (для MVP не парсим даты подробно; можно расширить позже)
-        total_sec = sum(qs.values_list("duration_sec", flat=True) or [0])
-        hours = round(total_sec / 3600, 2)
-        cost = round(hours * float(_get_rate(request.user)), 2)
-        return Response({"hours": hours, "cost": cost})
+        qs = TimeEntry.objects.all()
+
+        # фильтр по проекту
+        project_id = request.query_params.get("project")
+        if project_id:
+            qs = qs.filter(task__project_id=project_id)
+
+        # фильтры по дате
+        from_str = request.query_params.get("from")
+        to_str = request.query_params.get("to")
+        if from_str:
+            qs = qs.filter(started_at__date__gte=from_str)
+        if to_str:
+            qs = qs.filter(started_at__date__lte=to_str)
+
+        # агрегаты
+        total_sec = qs.aggregate(s=Sum("duration_sec"))["s"] or 0
+        hrs = round(total_sec / 3600, 2)
+        rate = float(getattr(getattr(request.user, "userprofile", None), "hourly_rate", 0) or settings.DEFAULT_RATE)
+        cost = round(hrs * rate, 2)
+
+        return Response({"hours": hrs, "cost": cost})
+

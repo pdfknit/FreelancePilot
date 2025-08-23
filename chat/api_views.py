@@ -5,7 +5,7 @@ from decimal import Decimal
 from django.conf import settings
 from django.db.models import Q
 from django.utils import timezone
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -88,7 +88,7 @@ def normalize_status(s: str) -> str | None:
 
 # -------- История чата --------
 class ChatHistoryApi(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         sess = ensure_session_key(request)
@@ -103,7 +103,7 @@ class ChatHistoryApi(APIView):
 
 # -------- Сообщения/команды --------
 class ChatMessageApi(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         sess = ensure_session_key(request)
