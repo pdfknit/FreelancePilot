@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="170" height="28" viewBox="0 0 170 28">
+  <style>
+    .a{font:600 18px/1 'Inter', Arial, sans-serif; fill:#111827}
+    .b{fill:#2563EB}
+  </style>
+  <rect class="b" x="0" y="4" width="24" height="20" rx="6"/>
+  <text class="a" x="30" y="21">FreelancePilot</text>
+  <text x="6" y="21" font-family="Inter, Arial" font-size="14" font-weight="700" fill="#fff">FP</text>
+</svg>

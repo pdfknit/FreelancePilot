@@ -2,25 +2,43 @@
 {% block title %}Задачи{% endblock %}
 {% block content %}
 <div class="card">
-  <div class="row" style="justify-content:space-between">
-    <h2 style="margin:0">Задачи</h2>
-    <a href="/chat/" class="btn btn-outline">Создать через чат</a>
-  </div>
-  <table class="table" style="margin-top:8px">
-    <thead><tr><th>ID</th><th>Название</th><th>Оценка (ч)</th><th>Стоимость</th><th>Статус</th></tr></thead>
-    <tbody>
-      {% for t in tasks %}
-      <tr>
-        <td>#{{t.id}}</td>
-        <td>{{t.title}}</td>
-        <td>{{t.est_hours_min}}–{{t.est_hours_max}}</td>
-        <td>{{t.est_cost}} {{user.currency|default:"USD"}}</td>
-        <td><span class="badge {{t.status}}">{{t.status}}</span></td>
-      </tr>
-      {% empty %}
-      <tr><td colspan="5" class="muted">Пока нет задач</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+    <div class="row" style="justify-content:space-between">
+        <h2 style="margin:0">Задачи</h2>
+        <a href="/chat/" class="btn btn-outline">Создать через чат</a>
+    </div>
+    <table class="table" style="margin-top:8px">
+        <thead>
+        <tr>
+            <th>ID</th>
+            <th>Название</th>
+            <th>Оценка (ч)</th>
+            <th>Стоимость</th>
+            <th>Статус</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% if tasks %}
+        {% for t in tasks %}
+        <tr>
+            <td>#{{t.id}}</td>
+            <td>{{t.title}}</td>
+            <td>{{t.est_hours_min}}–{{t.est_hours_max}}</td>
+            <td>{{t.est_cost}} {{user.currency|default:"USD"}}</td>
+            <td><span class="badge {{t.status}}">{{t.status}}</span></td>
+        </tr>
+        {% endfor %}
+        {% else %}
+        <tr>
+            <td colspan="5">
+                <div class="empty">
+                    <div class="icon">🗒️</div>
+                    Пока нет задач. Создайте первую через <a href="/chat/">чат</a> или кнопку «Добавить».
+                </div>
+            </td>
+        </tr>
+        {% endif %}
+        </tbody>
+
+    </table>
 </div>
 {% endblock %}

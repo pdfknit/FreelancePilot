@@ -2,11 +2,22 @@
 {% block title %}Настройки{% endblock %}
 {% block content %}
 <div class="card grid">
-  <h2 style="margin:0">Ставка и валюта</h2>
+  <h2>Ставка и валюта</h2>
   <form method="post" class="grid" style="max-width:420px; gap:12px">{% csrf_token %}
     {{ form.as_p }}
     <button class="btn" type="submit">Сохранить</button>
   </form>
-  <p class="muted">Ставка используется для расчёта стоимости задач и отчётов.</p>
 </div>
+
+<div id="toast" class="toast success">Сохранено</div>
+<script>
+  (function(){
+    const saved = {{ saved|yesno:"true,false" }};
+    if(saved){
+      const el = document.getElementById('toast');
+      el.classList.add('show');
+      setTimeout(()=> el.classList.remove('show'), 2200);
+    }
+  })();
+</script>
 {% endblock %}

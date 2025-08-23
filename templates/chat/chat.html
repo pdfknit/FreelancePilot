@@ -2,13 +2,20 @@
 {% block title %}Чат{% endblock %}
 {% block content %}
 <div class="card">
-  <h2 style="margin:0 0 8px">Чат‑ассистент</h2>
-  <p class="muted" style="margin:0 0 12px">Например: <i>add сделать лендинг</i>, <i>rate 25</i>, <i>start 12</i>, <i>stop</i></p>
-  <div id="chat-log" class="chat-box" aria-live="polite" aria-label="Диалог"></div>
-  <form id="chat-form" class="row" autocomplete="off">
-    <input id="chat-input" class="input" placeholder="Ваше сообщение…" />
-    <button class="btn" type="submit">Отправить</button>
-  </form>
+    <h2 style="margin:0 0 8px">Чат‑ассистент</h2>
+    <p class="muted" style="margin:0 0 12px">Например: <i>add сделать лендинг</i>, <i>rate 25</i>, <i>start 12</i>, <i>stop</i>
+    </p>
+    <div id="chat-log" class="chat-box" aria-live="polite" aria-label="Диалог">
+        <div class="empty">
+            <div class="icon">🤖</div>
+            Привет! Я помогу оценить задачу и учесть время.<br>
+            Примеры: <i>add сделать лендинг</i>, <i>rate 25</i>, <i>start 12</i>, <i>stop</i>
+        </div>
+    </div>
+    <form id="chat-form" class="row" autocomplete="off">
+        <input id="chat-input" class="input" placeholder="Ваше сообщение…"/>
+        <button class="btn" type="submit">Отправить</button>
+    </form>
 </div>
 <script src="{% static 'js/chat.js' %}" defer></script>
 {% endblock %}
