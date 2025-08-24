@@ -1,20 +1,19 @@
-# chat/api_views.py
 from __future__ import annotations
 
-from decimal import Decimal
 from django.conf import settings
-from django.db.models import Q
+from django.db.models import Q, Sum
 from django.utils import timezone
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from datetime import timedelta
 
 from .models import MessageLog
 from .serializers import MessageLogSerializer
 from .utils import ensure_session_key
 
 from tasks.models import Task, TimeEntry
-from chat.services.estimator import estimate
+from chat.services.estimator import estimate, faq_answer, handle_free_text
 
 
 def _get_rate(user):
@@ -34,7 +33,6 @@ def _title_from_text(text: str) -> str:
 def _create_task(
         title: str,
         raw_text: str,
-        user,
         *,
         estimate_dict: dict | None = None,
         hmin: float | None = None,
@@ -88,7 +86,7 @@ def normalize_status(s: str) -> str | None:
 
 # -------- История чата --------
 class ChatHistoryApi(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
     def get(self, request):
         sess = ensure_session_key(request)
@@ -103,12 +101,12 @@ class ChatHistoryApi(APIView):
 
 # -------- Сообщения/команды --------
 class ChatMessageApi(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
     def post(self, request):
         sess = ensure_session_key(request)
         u = request.user if request.user.is_authenticated else None
-        text = (request.data.get("text") or "").strip()
+        text = (request.data.get("message") or request.data.get("text") or "").strip()
         channel = request.data.get("channel") or "page"
         if not text:
             return Response({"error": "empty"}, status=400)
@@ -152,16 +150,17 @@ class ChatMessageApi(APIView):
         # ESTIMATE (подсказка ИИ, потом спрашиваем подтвердить добавление)
         elif low.startswith("estimate "):
             raw = text.split(" ", 1)[1]
-            est = estimate(raw_text=raw, hourly_rate=_get_rate(u))
+            est = estimate(task_text=raw, user_profile=u, project=project if 'project' in locals() else None)
+
             est_dict = {
                 "summary": est.summary,
-                "decomposition": est.decomposition,
-                "risks": est.risks,
-                "base_hours": est.base_hours,
+                "decomposition": list(est.decomposition or []),
+                "risks": list(est.risks or []),
+                "base_hours": float(est.base_hours),
                 "confidence": est.confidence,
-                "est_hours_min": est.est_hours_min,
-                "est_hours_max": est.est_hours_max,
-                "est_cost": est.est_cost,
+                "est_hours_min": float(est.est_hours_min),
+                "est_hours_max": float(est.est_hours_max),
+                "est_cost": float(est.est_cost),
                 "raw_text": raw,
             }
             # сохраним в сессию «ожидается подтверждение»
@@ -172,9 +171,10 @@ class ChatMessageApi(APIView):
                     f"Summary: {est.summary}\n"
                     f"Диапазон: {est.est_hours_min}-{est.est_hours_max} ч (conf: {est.confidence})\n"
                     f"Стоимость: {_fmt_money(est.est_cost)}\n"
-                    f"Декомпозиция: " + "; ".join(est.decomposition) + "\n"
-                                                                       f"Риски: " + "; ".join(est.risks) + "\n\n"
-                                                                                                           f"Добавить задачу с этой автооценкой? (да/нет)"
+                    f"Декомпозиция: " + "; ".join(est.decomposition or []) + "\n"
+                                                                             f"Риски: " + "; ".join(
+                est.risks or []) + "\n\n"
+                                   f"Добавить задачу с этой автооценкой? (да/нет)"
             )
 
         # CONFIRM YES/NO (используется после estimate)
@@ -183,11 +183,9 @@ class ChatMessageApi(APIView):
             if not pending:
                 reply = "Нет ожидающей оценки. Сначала введите: estimate <текст>"
             else:
-                title = _title_from_text(pending.get("raw_text", ""))
                 t = _create_task(
                     _title_from_text(pending.get("raw_text", "")),
                     pending.get("raw_text", ""),
-                    user=u,
                     estimate_dict=pending,
                 )
                 # очистим ожидание
@@ -225,7 +223,7 @@ class ChatMessageApi(APIView):
                 if "-" in p:
                     a, b = [s.strip() for s in p.split("-", 1)]
                     try:
-                        hmin = float(a);
+                        hmin = float(a)
                         hmax = float(b)
 
                     except Exception:
@@ -249,7 +247,6 @@ class ChatMessageApi(APIView):
             t = _create_task(
                 title=title,
                 raw_text=payload,
-                user=u,
                 hmin=hmin,
                 hmax=hmax,
                 cost=cost,
@@ -265,7 +262,7 @@ class ChatMessageApi(APIView):
 
             # стоимость
             if cost is not None:
-                bits.append(f"Стоимость: {cost:.2f}")
+                bits.append(f"Стоимость: {_fmt_money(cost)}")
             else:
                 bits.append("Стоимость: —")
 
@@ -286,9 +283,10 @@ class ChatMessageApi(APIView):
                     status_text = " ".join(parts[2:])  # поддержка 'in progress' / 'в работе'
                     new_status = normalize_status(status_text)
                     if not new_status:
-                        allowed = [lbl for _, lbl in Task.STATUS]
+                        allowed_labels = [lbl for _, lbl in getattr(Task, "STATUS", [])]
                         reply = "Недопустимый статус. Доступные: " + ", ".join(
-                            allowed + ["open/in progress/paused/done"])
+                            allowed_labels or ["open", "in progress", "paused", "done"])
+
                     else:
                         try:
                             task = Task.objects.get(pk=task_id)
@@ -337,8 +335,15 @@ class ChatMessageApi(APIView):
                 if not te:
                     reply = "Нет активного таймера."
                 else:
-                    te.stop(timezone.now())
+                    if hasattr(te, "stop"):
+                        te.stop(timezone.now())
+                    else:
+                        te.stopped_at = timezone.now()
+                        te.duration_sec = int((te.stopped_at - te.started_at).total_seconds())
+                        te.save(update_fields=["stopped_at", "duration_sec"])
+
                     dur = int(te.duration_sec or 0)
+
                     h = round(dur / 3600, 2)
                     reply = f"Таймер остановлен. Длительность: {h} ч (задача #{te.task_id})."
 
@@ -350,29 +355,78 @@ class ChatMessageApi(APIView):
                 period = (low.split(" ", 1)[1] if " " in low else "week").strip()
                 now = timezone.now()
                 if period in ("week", "w"):
-                    since = now - timezone.timedelta(days=7)
+                    since = now - timedelta(days=7)
                     title = "за 7 дней"
                 elif period in ("month", "m"):
-                    since = now - timezone.timedelta(days=30)
+                    since = now - timedelta(days=30)
                     title = "за 30 дней"
                 else:
-                    since = now - timezone.timedelta(days=7)
+                    since = now - timedelta(days=7)
                     title = "за 7 дней"
 
                 qs = TimeEntry.objects.filter(
                     user=u, stopped_at__isnull=False, started_at__gte=since
                 )
-                total_sec = sum(qs.values_list("duration_sec", flat=True) or [0])
+                total_sec = qs.aggregate(total=Sum("duration_sec"))["total"] or 0
                 hours = round(total_sec / 3600, 2)
                 cost = round(hours * float(_get_rate(u)), 2)
                 reply = f"Отчёт {title}: {hours} ч, {_fmt_money(cost)} у.е."
+        # --- FAQ: прямой вопрос к ИИ без контекста ---
+        elif low.startswith("/faq ") or low.startswith("faq "):
+            question = text.split(" ", 1)[1].strip() if " " in text else ""
+            if not question:
+                reply = "Формат: /faq <вопрос>. Например: /faq Сколько просить в час мидлу Python 3 года?"
+            else:
+                reply = faq_answer(question)
 
-        # FALLBACK
+            data = {"reply": reply, "kind": "faq"}
+            MessageLog.objects.create(
+                user=u, session_key=sess, channel=channel, role="assistant", text=reply
+            )
+            return Response(data, status=200)
+
+        # текст свободный
+        # текст свободный
         if not reply:
-            reply = f"Принято: {text}"
+            # восстановим последнюю оценку при желании — можно добавить позже
+            r = handle_free_text(text, user_profile=u, project=None)
+            reply = r.text  # что напишем в лог и что увидит пользователь
 
-        # логируем исход
+            # базовый ответ для фронта
+            data = {"reply": r.text, "kind": r.kind}
+
+            # если это сразу получилась оценка — добавим поля и сохраним её в сессию
+            if r.estimation:
+                est = r.estimation
+                data.update({
+                    "summary": est.summary,
+                    "decomposition": list(est.steps or []),
+                    "risks": list(est.risks or []),
+                    "hours_min": est.est_hours_min,
+                    "hours_max": est.est_hours_max,
+                    "base_hours": est.base_hours,
+                    "confidence": est.confidence,
+                    "hourly_rate": est.hourly_rate_eur,
+                    "cost": est.est_cost,
+                })
+                # сохраним «последнюю оценку» для последующих вопросов
+                request.session["last_estimation"] = {
+                    "summary": est.summary,
+                    "steps": list(est.steps or []),
+                    "risks": list(est.risks or []),
+                    "est_hours_min": float(est.est_hours_min),
+                    "est_hours_max": float(est.est_hours_max),
+                    "confidence": est.confidence,
+                    "hourly_rate_eur": float(est.hourly_rate_eur),
+                    "est_cost": float(est.est_cost),
+                }
+                request.session.modified = True
+        else:
+            # для всех веток выше, где reply уже строка
+            data = {"reply": reply}
+
+        # лог исходящего
         MessageLog.objects.create(
             user=u, session_key=sess, channel=channel, role="assistant", text=reply
         )
-        return Response({"reply": reply})
+        return Response(data, status=200)

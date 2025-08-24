@@ -10,7 +10,11 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 import os
+from dotenv import load_dotenv
 from pathlib import Path
+from django.conf import settings
+
+load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -38,6 +42,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'django_countries',
     'freelancePilot',
     'users',
     'chat',
@@ -106,7 +111,8 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+# LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = "ru"
 
 TIME_ZONE = 'UTC'
 
@@ -130,7 +136,14 @@ LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/"
 
 # --- FreelancePilot defaults ---
-DEFAULT_RATE = float(os.getenv("DEFAULT_RATE", "25"))
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+DEFAULT_RATE = float(os.getenv("DEFAULT_RATE", 25))
+LLM_MODEL = getattr(settings, "LLM_MODEL", "gpt-4o-mini")
+LLM_TEMPERATURE = getattr(settings, "LLM_TEMPERATURE", 0.2)
+LLM_MAX_TOKENS = getattr(settings, "LLM_MAX_TOKENS", 700)
+DEFAULT_RATE = getattr(settings, "DEFAULT_RATE", 25.0)
+
+
 
 REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticatedOrReadOnly"],

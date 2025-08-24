@@ -424,3 +424,14 @@ tr.saved {
 .task-row.status-done {
     border-left: 4px solid #4cd07a;
 }
+
+
+#id_currency {
+    width: 110px;
+}
+
+.form-errors {
+    color: #dc3545;
+    font-size: 13px;
+    margin-top: 6px;
+}

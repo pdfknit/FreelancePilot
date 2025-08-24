@@ -13,8 +13,11 @@ class Client(models.Model):
 
 
 class Project(models.Model):
+    CLIENT_TYPES = [('startup', 'Startup'), ('smb', 'SMB'), ('enterprise', 'Enterprise')]
     client = models.ForeignKey(Client, on_delete=models.SET_NULL, null=True, blank=True, related_name="projects")
     title = models.CharField(max_length=200)
+    client_type = models.CharField(max_length=16, choices=CLIENT_TYPES, blank=True, null=True)
+
     description = models.TextField(blank=True, default="")
     created_at = models.DateTimeField(default=timezone.now)
 
@@ -39,6 +42,7 @@ class Task(models.Model):
     est_confidence = models.CharField(max_length=1, choices=[('L', 'L'), ('M', 'M'), ('H', 'H')], blank=True,
                                       default='')
     est_cost = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    est_rate = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
 
     status = models.CharField(max_length=20, choices=STATUS, default='open')
     created_at = models.DateTimeField(default=timezone.now)

@@ -4,3 +4,4 @@
 /freelancePilot/migrations/
 /chat/migrations/
 /tasks/migrations/
+/.env

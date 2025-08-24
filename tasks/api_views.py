@@ -1,6 +1,8 @@
 # tasks/api_views.py
 from __future__ import annotations
 
+from datetime import timedelta
+
 from django.conf import settings
 from django.utils import timezone
 from django.db.models import Sum
@@ -22,12 +24,12 @@ class TaskListCreateApi(generics.ListCreateAPIView):
         task = serializer.save()
         auto = self.request.query_params.get("auto_estimate") or self.request.data.get("auto_estimate")
         if str(auto).lower() in {"1", "true", "yes"}:
-            rate = getattr(getattr(self.request.user, "userprofile", None), "hourly_rate", None) or 25
+            rate = getattr(getattr(self.request.user, "profile", None), "hourly_rate", None) or settings.DEFAULT_RATE
             est = estimate(task.raw_text or task.title, hourly_rate=float(rate), confidence="M")
             task.summary = est.summary
             task.est_hours_min = est.est_hours_min
             task.est_hours_max = est.est_hours_max
-            # task.est_confidence = est.est_confidence
+            task.est_confidence = est.confidence
             task.est_cost = est.est_cost
             task.save()
 
@@ -39,13 +41,15 @@ class TaskEstimateApi(views.APIView):
         except Task.DoesNotExist:
             return Response({"detail": "Task not found"}, status=404)
 
-        rate = getattr(getattr(request.user, "userprofile", None), "hourly_rate", None) or 25
-        conf = request.data.get("confidence", "M")
-        est = estimate(task.raw_text or task.title, hourly_rate=float(rate), confidence=conf)
+        rate = getattr(getattr(request.user, "profile", None), "hourly_rate", None) or 25
+        confidence = request.data.get("confidence", "M")
+        if confidence not in ("L", "M", "H"):
+            return Response({"error": "confidence must be one of L, M, H"}, status=400)
+        est = estimate(task.raw_text or task.title, hourly_rate=float(rate), confidence=confidence)
         task.summary = est.summary
         task.est_hours_min = est.est_hours_min
         task.est_hours_max = est.est_hours_max
-        task.est_confidence = est.est_confidence
+        task.est_confidence = est.confidence
         task.est_cost = est.est_cost
         task.save()
         return Response(TaskSerializer(task).data, status=200)
@@ -60,6 +64,13 @@ def time_start(request):
         task = Task.objects.get(pk=task_id)
     except Task.DoesNotExist:
         return Response({"detail": "Task not found"}, status=404)
+    active = TimeEntry.objects.filter(user=request.user, stopped_at__isnull=True).first()
+    if active:
+        return Response(
+            {"error": "You already have an active timer", "entry_id": active.id},
+            status=409
+        )
+
     entry = TimeEntry.objects.create(task=task, user=request.user, started_at=timezone.now())
     return Response(TimeEntrySerializer(entry).data, status=201)
 
@@ -72,7 +83,7 @@ def time_stop(request):
         .first()
     )
     if not entry:
-        return Response({"detail": "No running entry"}, status=400)
+        return Response({"detail": "No active timer"}, status=409)
     entry.stop(timezone.now())
     return Response(TimeEntrySerializer(entry).data, status=200)
 
@@ -86,19 +97,48 @@ class ReportSummaryApi(APIView):
         if project_id:
             qs = qs.filter(task__project_id=project_id)
 
-        # фильтры по дате
+        # входные даты
         from_str = request.query_params.get("from")
         to_str = request.query_params.get("to")
-        if from_str:
-            qs = qs.filter(started_at__date__gte=from_str)
-        if to_str:
-            qs = qs.filter(started_at__date__lte=to_str)
+
+        # парсер ISO-даты YYYY-MM-DD
+        def parse_iso(d: str):
+            try:
+                return date.fromisoformat(d)
+            except Exception:
+                return None
+
+        today = timezone.localdate()
+        start = parse_iso(from_str)
+        end = parse_iso(to_str)
+
+        if start and not end:
+            # есть from, нет to → неделя от from (пн-вс относительно from)
+            start = start - timedelta(days=start.weekday())
+            end = start + timedelta(days=6)
+        elif not start and end:
+            # есть to, нет from → неделя, заканчивающаяся на to (пн-вс)
+            end = end + timedelta(days=(6 - end.weekday()))
+            start = end - timedelta(days=6)
+        elif not start and not end:
+            # оба не заданы → текущая неделя (пн-вс)
+            start = today - timedelta(days=today.weekday())
+            end = start + timedelta(days=6)
+
+        # фильтры по дате
+        qs = qs.filter(started_at__date__gte=start, started_at__date__lte=end)
 
         # агрегаты
         total_sec = qs.aggregate(s=Sum("duration_sec"))["s"] or 0
         hrs = round(total_sec / 3600, 2)
-        rate = float(getattr(getattr(request.user, "userprofile", None), "hourly_rate", 0) or settings.DEFAULT_RATE)
+        rate = float(getattr(getattr(request.user, "profile", None), "hourly_rate", 0) or settings.DEFAULT_RATE)
         cost = round(hrs * rate, 2)
 
-        return Response({"hours": hrs, "cost": cost})
+        return Response({
+            "from": start.isoformat(),
+            "to": end.isoformat(),
+            "hours": hrs,
+            "rate": rate,
+            "cost": cost,
+        })
 
