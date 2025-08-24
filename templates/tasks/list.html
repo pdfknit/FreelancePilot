@@ -1,0 +1,64 @@
+{% extends "_base.html" %}
+{% load static %}
+{% block title %}Задачи{% endblock %}
+{% block content %}
+    <div class="card">
+        <div class="row" style="align-items:center; justify-content:space-between">
+            <h2 style="margin:0">Задачи</h2>
+            <a class="btn" href="/chat/">Создать через чат</a>
+        </div>
+
+        <table class="table" style="margin-top:12px">
+            <thead>
+            <tr>
+                <th>ID</th>
+                <th>Название</th>
+                <th>Оценка (ч)</th>
+                <th>Стоимость</th>
+                <th>Статус</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for t in tasks %}
+                <tr>
+                    <td>#{{ t.id }}</td>
+                    <td>{{ t.title }}</td>
+                    <td>
+                        {% if t.est_hours_min and t.est_hours_max %}
+                            {{ t.est_hours_min|floatformat }}–{{ t.est_hours_max|floatformat }}
+                        {% else %}
+                            —
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if t.est_cost %}
+                            {{ t.est_cost|floatformat }} {{ request.user.profile.currency|default:"USD" }}
+                        {% else %}
+                            —
+                        {% endif %}
+                    </td>
+                    <td>
+                        <form class="status-form" method="post" action="/tasks/set-status/">
+                            {% csrf_token %}
+                            <input type="hidden" name="task_id" value="{{ t.id }}">
+                            <select name="status">
+                                {% for value,label in TASK_STATUSES %}
+                                    <option value="{{ value }}" {% if t.status == value %}selected{% endif %}>
+                                        {{ label }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </form>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td colspan="5" class="muted">Пока нет задач — создайте через чат.</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <script src="{% static 'js/tasks_status.js' %}"></script>
+{% endblock %}

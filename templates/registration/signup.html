@@ -1,0 +1,14 @@
+{% extends "_base.html" %}
+{% block title %}Регистрация{% endblock %}
+{% block content %}
+<div class="card" style="max-width:420px;margin:0 auto">
+    <h2 style="margin:0 0 12px">Регистрация</h2>
+    <form method="post" class="grid" style="gap:12px">{% csrf_token %}
+        {{ form.as_p }}
+        <button class="btn" type="submit">Создать аккаунт</button>
+    </form>
+    <p class="muted" style="margin-top:12px">
+        Уже есть аккаунт? <a href="/accounts/login/">Войдите</a>
+    </p>
+</div>
+{% endblock %}

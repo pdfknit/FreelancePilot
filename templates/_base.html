@@ -1,0 +1,71 @@
+{% load static %}
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <title>{% block title %}FreelancePilot{% endblock %}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    {% load static %}
+    <!-- Google Fonts: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'css/main.css' %}">
+    <link rel="stylesheet" href="{% static 'css/widget.css' %}">
+    <link rel="icon" href="{% static 'brand/favicon.svg' %}" type="image/svg+xml">
+
+</head>
+<body>
+<header class="nav" role="banner" aria-label="Главная навигация">
+    <div class="nav-inner">
+        <a href="/" class="logo"><img src="{% static 'brand/logo.svg' %}" alt="FreelancePilot" height="28"></a>
+        <nav class="nav-links">
+            <a href="/chat/">Чат</a>
+            <a href="/tasks/">Задачи</a>
+            <a href="/reports/">Отчёты</a>
+            <a href="/settings/">Настройки</a>
+            {% if user.is_authenticated %}
+            <a href="/accounts/logout/">Выйти</a>
+            {% else %}
+            <a href="/accounts/login/">Войти</a>
+            {% endif %}
+        </nav>
+    </div>
+</header>
+
+<main id="content">{% block content %}{% endblock %}</main>
+
+<footer class="footer">© {% now "Y" %} FreelancePilot</footer>
+<!-- ВИДЖЕТ ЧАТА -->
+<div id="fp-chat-widget" class="fpw">
+    <button class="fpw-btn" id="fpw-toggle" aria-label="Открыть чат">
+        <!-- простая иконка "чат" -->
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M21 12c0 3.866-3.806 7-8.5 7-.928 0-1.818-.12-2.643-.344L5 20l1.5-3.2C5.58 15.69 5 13.91 5 12 5 8.134 8.806 5 13.5 5S21 8.134 21 12Z"
+                  stroke="currentColor" stroke-width="1.6" fill="none"/>
+        </svg>
+    </button>
+
+    <div class="fpw-panel" id="fpw-panel" role="dialog" aria-label="Чат-ассистент" aria-modal="false">
+        <div class="fpw-head">
+            <div class="fpw-title">FreelancePilot · чат</div>
+            <button class="fpw-close" id="fpw-close" aria-label="Закрыть">✕</button>
+        </div>
+        <div class="fpw-body">
+            <div id="fpw-log" class="fpw-log" aria-live="polite">
+                <div class="fpw-empty">
+                    🤖 Привет! Я помогу оценить задачу и учесть время.<br>
+                    Примеры: <i>add сделать лендинг</i>, <i>rate 25</i>, <i>start 12</i>, <i>stop</i>
+                </div>
+            </div>
+            <form id="fpw-form" class="fpw-form" autocomplete="off">
+                {% csrf_token %}
+                <input id="fpw-input" class="fpw-input" placeholder="Ваше сообщение…"/>
+                <button class="fpw-send" type="submit">Отправить</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script src="{% static 'js/widget.js' %}" defer></script>
+
+</body>
+</html>

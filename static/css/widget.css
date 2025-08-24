@@ -1,0 +1,129 @@
+/* ——— Floating Chat Widget ——— */
+.fpw {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    z-index: 9999;
+    font-family: inherit
+}
+
+.fpw-btn {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: #fff;
+    color: #2563EB;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, .12);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.fpw-btn:hover {
+    filter: brightness(1.03)
+}
+
+.fpw-panel {
+    width: 340px;
+    max-height: 65vh;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: 0 14px 28px rgba(0, 0, 0, .16);
+    position: absolute;
+    right: 0;
+    bottom: 64px;
+    display: none;
+    overflow: hidden;
+}
+
+.fpw-panel.open {
+    display: block
+}
+
+.fpw-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    background: #F9FAFB
+}
+
+.fpw-title {
+    font-weight: 600
+}
+
+.fpw-close {
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1
+}
+
+.fpw-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px
+}
+
+.fpw-log {
+    height: 280px;
+    overflow: auto;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px;
+    background: #fff;
+}
+
+.fpw-msg {
+    margin: 6px 0
+}
+
+.fpw-msg b {
+    display: inline-block;
+    min-width: 44px
+}
+
+.fpw-msg .err {
+    color: #DC2626
+}
+
+.fpw-form {
+    display: flex;
+    gap: 8px
+}
+
+.fpw-input {
+    flex: 1;
+    height: 40px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 8px 10px
+}
+
+.fpw-send {
+    background: #2563EB;
+    color: #fff;
+    border: 0;
+    border-radius: 10px;
+    padding: 0 12px;
+    cursor: pointer
+}
+
+.fpw-empty {
+    color: var(--muted);
+    text-align: center;
+    padding: 8px
+}
+
+@media (max-width: 520px) {
+    .fpw-panel {
+        width: 92vw;
+        right: 4vw
+    }
+}

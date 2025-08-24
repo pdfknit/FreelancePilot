@@ -1,0 +1,33 @@
+{% extends "_base.html" %}
+{% block title %}Отчёты{% endblock %}
+{% block content %}
+<div class="card grid">
+  <h2 style="margin:0">Отчёт</h2>
+
+  <form method="get" class="row">
+    <input type="date" name="from" class="input" value="{{ request.GET.from }}">
+    <input type="date" name="to" class="input" value="{{ request.GET.to }}">
+    <button class="btn" type="submit">Показать</button>
+  </form>
+
+  {% if hours and hours|floatformat:2 != "0.00" %}
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr))">
+      <div class="card" style="padding:12px">
+        <div class="muted">Часы</div>
+        <div style="font-size:22px; font-weight:600">{{hours}} ч</div>
+      </div>
+      <div class="card" style="padding:12px">
+        <div class="muted">Стоимость</div>
+        <div style="font-size:22px; font-weight:600">{{cost}} {{user.currency|default:"USD"}}</div>
+      </div>
+    </div>
+  {% else %}
+    <div class="empty">
+      <div class="icon">📊</div>
+      За выбранный период данных нет. Начните трекать задачи — и здесь появится статистика.
+    </div>
+  {% endif %}
+
+  <a href="/chat/" class="btn btn-outline">Открыть чат</a>
+</div>
+{% endblock %}

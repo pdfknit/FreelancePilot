@@ -1,0 +1,72 @@
+{% extends "_base.html" %}
+{% block title %}Настройки{% endblock %}
+{% block content %}
+    <div class="card grid">
+        <h2>Настройки профиля</h2>
+        <form method="post" class="grid" style="max-width:420px; gap:12px">
+            {% csrf_token %}
+
+            {# --- Ставка + валюта в одной строке --- #}
+            <div>
+                <label for="id_hourly_rate">Ставка</label>
+                <div style="display:flex; gap:8px; align-items:center;">
+                    {{ form.hourly_rate }}
+                    {{ form.currency }}
+                    <span style="opacity:.7">в час</span>
+                </div>
+                {% if form.hourly_rate.errors or form.currency.errors %}
+                    <div class="form-errors">
+                        {% for e in form.hourly_rate.errors %}
+                            <div>{{ e }}</div>{% endfor %}
+                        {% for e in form.currency.errors %}
+                            <div>{{ e }}</div>{% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+
+            {# --- остальные поля формы --- #}
+            <div>
+                {{ form.profession.label_tag }}
+                {{ form.profession }}
+                {% for e in form.profession.errors %}
+                    <div class="form-errors">{{ e }}</div>{% endfor %}
+            </div>
+
+            <div>
+                {{ form.seniority.label_tag }}
+                {{ form.seniority }}
+                {% for e in form.seniority.errors %}
+                    <div class="form-errors">{{ e }}</div>{% endfor %}
+            </div>
+
+            <div>
+                {{ form.experience_years.label_tag }}
+                {{ form.experience_years }}
+                {% for e in form.experience_years.errors %}
+                    <div class="form-errors">{{ e }}</div>{% endfor %}
+            </div>
+
+            <div>
+                {{ form.country.label_tag }}
+                {{ form.country }}
+                {% for e in form.country.errors %}
+                    <div class="form-errors">{{ e }}</div>{% endfor %}
+            </div>
+
+            <button class="btn" type="submit">Сохранить</button>
+        </form>
+
+    </div>
+
+    <div id="toast" class="toast success">Сохранено</div>
+    <script>
+        (function () {
+            const saved = {{ saved|yesno:"true,false" }};
+            if (saved) {
+                const el = document.getElementById('toast');
+                el.classList.add('show');
+                setTimeout(() => el.classList.remove('show'), 2200);
+            }
+        })();
+    </script>
+{% endblock %}
