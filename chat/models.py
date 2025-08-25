@@ -12,6 +12,7 @@ class MessageLog(models.Model):
     channel = models.CharField(max_length=10, choices=CHANNEL_CHOICES, default='page', db_index=True)
     role = models.CharField(max_length=10, choices=ROLE_CHOICES)  # user / assistant
     text = models.TextField()
+    payload = models.JSONField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

@@ -8,6 +8,8 @@ class UserProfile(models.Model):
     CURRENCIES = [('EUR', 'EUR'), ('USD', 'USD'), ('RUB', 'RUB')]
     SENIORITY = [('junior', 'Junior'), ('middle', 'Middle'), ('senior', 'Senior'), ('lead', 'Lead')]
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='profile')
+    tg_id = models.BigIntegerField(null=True, blank=True, unique=True)
+    telegram_username = models.CharField(max_length=32, null=True, blank=True, unique=False, db_index=True, help_text="Ваш Telegram username (без @). Пример: johndoe")
     tg_id = models.BigIntegerField(null=True, blank=True, db_index=True)
     hourly_rate = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
     currency = models.CharField(max_length=3, choices=CURRENCIES, default='EUR')

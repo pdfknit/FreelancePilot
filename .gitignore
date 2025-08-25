@@ -5,3 +5,4 @@
 /chat/migrations/
 /tasks/migrations/
 /.env
+/telegram_bot/config.py

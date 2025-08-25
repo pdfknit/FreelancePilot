@@ -53,8 +53,17 @@
                     <div class="form-errors">{{ e }}</div>{% endfor %}
             </div>
 
-            <button class="btn" type="submit">Сохранить</button>
-        </form>
+            <div>
+                {{ form.telegram_username.label_tag }}
+                {{ form.telegram_username }}
+            </div>
+            {% for e in form.telegram_username.errors %}
+                <div class="form-errors">{{ e }}</div>
+            {% endfor %}
+    </div>
+
+    <button class="btn" type="submit">Сохранить</button>
+    </form>
 
     </div>
 

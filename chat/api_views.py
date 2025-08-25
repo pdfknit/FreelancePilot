@@ -1,13 +1,18 @@
 from __future__ import annotations
 
+import uuid
+
 from django.conf import settings
 from django.db.models import Q, Sum
 from django.utils import timezone
-from rest_framework.permissions import AllowAny
+from django.core.cache import cache
+from openai import project
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from datetime import timedelta
 
+from .auth.bot_key_permission import HasBotApiKey
 from .models import MessageLog
 from .serializers import MessageLogSerializer
 from .utils import ensure_session_key
@@ -101,7 +106,7 @@ class ChatHistoryApi(APIView):
 
 # -------- Сообщения/команды --------
 class ChatMessageApi(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, HasBotApiKey]
 
     def post(self, request):
         sess = ensure_session_key(request)
@@ -118,6 +123,7 @@ class ChatMessageApi(APIView):
 
         low = text.lower()
         reply = None
+        actions = None
 
         # HELP
         if low in ("команды", "help", "/help"):
@@ -134,7 +140,7 @@ class ChatMessageApi(APIView):
             )
 
         # RATE
-        elif low.startswith("rate "):
+        elif low.startswith("rate ") or low.startswith("/rate "):
             try:
                 val = float(text.split(" ", 1)[1])
                 if u and hasattr(u, "profile"):
@@ -148,7 +154,7 @@ class ChatMessageApi(APIView):
 
         # ESTIMATE (только подсказка, не создаёт задачу)
         # ESTIMATE (подсказка ИИ, потом спрашиваем подтвердить добавление)
-        elif low.startswith("estimate "):
+        elif low.startswith("estimate ") or low.startswith("/estimate "):
             raw = text.split(" ", 1)[1]
             est = estimate(task_text=raw, user_profile=u, project=project if 'project' in locals() else None)
 
@@ -163,21 +169,38 @@ class ChatMessageApi(APIView):
                 "est_cost": float(est.est_cost),
                 "raw_text": raw,
             }
-            # сохраним в сессию «ожидается подтверждение»
-            request.session['pending_estimate'] = est_dict
-            request.session.modified = True
+            # сохраняем pending в кэш по одноразовому id (15 минут)
+            estimate_id = uuid.uuid4().hex
+            pending = {
+                "user_id": (request.user.id if request.user.is_authenticated else None),
+                "est": est_dict,
+                "raw_text": raw,
+            }
+            cache.set(f"pending_estimate:{estimate_id}", pending, 15 * 60)
 
+            # inline-кнопки для Телеги (бот их покажет, если это поле придёт)
+            actions = [
+                {"type": "tg_inline", "text": "✅ Создать задачу", "callback": f"confirm|{estimate_id}|create"},
+                {"type": "tg_inline", "text": "✖ Отмена", "callback": f"confirm|{estimate_id}|cancel"},
+            ]
             reply = (
-                    f"Summary: {est.summary}\n"
-                    f"Диапазон: {est.est_hours_min}-{est.est_hours_max} ч (conf: {est.confidence})\n"
-                    f"Стоимость: {_fmt_money(est.est_cost)}\n"
-                    f"Декомпозиция: " + "; ".join(est.decomposition or []) + "\n"
-                                                                             f"Риски: " + "; ".join(
-                est.risks or []) + "\n\n"
-                                   f"Добавить задачу с этой автооценкой? (да/нет)"
+                f"Оценка задачи:\n"
+                f"• {est.summary}\n"
+                f"• Часы: {est.est_hours_min}-{est.est_hours_max} ч\n"
+                f"• Уверенность: {est.confidence}\n"
+                f"• Стоимость: {_fmt_money(est.est_cost)}\n\n"
+                f"Создать задачу?"
             )
+            return Response({
+                "reply": reply,
+                "actions": [
+                    {"type": "tg_inline", "text": "✅ Создать задачу", "callback": f"confirm|{estimate_id}|create"},
+                    {"type": "tg_inline", "text": "✖ Отмена", "callback": f"confirm|{estimate_id}|cancel"},
+                ],
+            })
 
-        # CONFIRM YES/NO (используется после estimate)
+
+        # YES/NO (используется после estimate)
         elif low in ("да", "yes", "y", "д"):
             pending = request.session.get('pending_estimate')
             if not pending:
@@ -209,7 +232,7 @@ class ChatMessageApi(APIView):
 
         # ADD (просто "Название, Время, Цена")
 
-        elif low.startswith("add "):
+        elif low.startswith("add ") or low.startswith("/add "):
 
             payload = text.split(" ", 1)[1]
             parts = [p.strip() for p in payload.split(",")]
@@ -301,7 +324,7 @@ class ChatMessageApi(APIView):
 
 
         # START TIMER
-        elif low.startswith("start"):
+        elif low.startswith("start") or low.startswith("/start"):
             if not u or not u.is_authenticated:
                 reply = "Нужна авторизация для учёта времени."
             else:
@@ -323,7 +346,7 @@ class ChatMessageApi(APIView):
                         reply = f"Задача #{task_id} не найдена."
 
         # STOP TIMER
-        elif low.startswith("stop"):
+        elif low.startswith("stop") or low.startswith("/stop"):
             if not u or not u.is_authenticated:
                 reply = "Нужна авторизация для учёта времени."
             else:
@@ -348,7 +371,7 @@ class ChatMessageApi(APIView):
                     reply = f"Таймер остановлен. Длительность: {h} ч (задача #{te.task_id})."
 
         # REPORT
-        elif low.startswith("report"):
+        elif low.startswith("report") or low.startswith("/report"):
             if not u or not u.is_authenticated:
                 reply = "Нужна авторизация для отчётов."
             else:
@@ -384,8 +407,39 @@ class ChatMessageApi(APIView):
                 user=u, session_key=sess, channel=channel, role="assistant", text=reply
             )
             return Response(data, status=200)
+        elif low.startswith("confirm "):
+            parts = low.split()
+            if len(parts) < 3:
+                reply = "Неверный формат подтверждения."
+                return Response({"reply": reply})
 
-        # текст свободный
+            _, est_id, action = parts[:3]
+            key = f"pending_estimate:{est_id}"
+            pending = cache.get(key)
+            if not pending:
+                return Response({"reply": "Оценка устарела. Сделайте /estimate ещё раз."})
+
+            # безопасность: если pending помнит user_id — сверим
+            if pending.get("user_id") and request.user.is_authenticated and request.user.id != pending["user_id"]:
+                return Response({"reply": "Недостаточно прав для этого действия."}, status=403)
+
+            if action == "cancel":
+                cache.delete(key)
+                return Response({"reply": "Отменено."})
+
+            # action == create → создаём задачу из pending
+            est = pending["est"]
+            raw_text = pending.get("raw_text") or ""
+            title = _title_from_text(raw_text)
+            t = _create_task(
+                title=title,
+                raw_text=raw_text,
+                estimate_dict=est,
+            )
+            cache.delete(key)
+            return Response({
+                "reply": f"Задача #{t.id} создана: {title} (план {est.get('est_hours_min')}-{est.get('est_hours_max')} ч)"})
+
         # текст свободный
         if not reply:
             # восстановим последнюю оценку при желании — можно добавить позже
@@ -421,10 +475,39 @@ class ChatMessageApi(APIView):
                     "est_cost": float(est.est_cost),
                 }
                 request.session.modified = True
+                # подготовим такие же кнопки для Телеги (и pending в кэше)
+                est_dict = {
+                    "summary": est.summary,
+                    "decomposition": list(est.steps or []),
+                    "risks": list(est.risks or []),
+                    "base_hours": float(est.base_hours),
+                    "confidence": est.confidence,
+                    "est_hours_min": float(est.est_hours_min),
+                    "est_hours_max": float(est.est_hours_max),
+                    "est_cost": float(est.est_cost),
+                    "raw_text": text,
+                }
+                estimate_id = uuid.uuid4().hex
+                pending = {
+                    "user_id": (request.user.id if request.user.is_authenticated else None),
+                    "est": est_dict,
+                    "raw_text": text,
+                }
+                cache.set(f"pending_estimate:{estimate_id}", pending, 15 * 60)
+
+                actions = [
+                    {"type": "tg_inline", "text": "✅ Создать задачу", "callback": f"confirm|{estimate_id}|create"},
+                    {"type": "tg_inline", "text": "✖ Отмена", "callback": f"confirm|{estimate_id}|cancel"},
+                ]
+                data["actions"] = actions  # если actions есть
+                return Response(data, status=200)
+
+
         else:
-            # для всех веток выше, где reply уже строка
             data = {"reply": reply}
 
+        if actions:
+            data["actions"] = actions
         # лог исходящего
         MessageLog.objects.create(
             user=u, session_key=sess, channel=channel, role="assistant", text=reply

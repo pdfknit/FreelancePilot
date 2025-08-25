@@ -143,17 +143,16 @@ LLM_TEMPERATURE = getattr(settings, "LLM_TEMPERATURE", 0.2)
 LLM_MAX_TOKENS = getattr(settings, "LLM_MAX_TOKENS", 700)
 DEFAULT_RATE = getattr(settings, "DEFAULT_RATE", 25.0)
 
-
-
 REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticatedOrReadOnly"],
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework.authentication.SessionAuthentication",
         "rest_framework.authentication.BasicAuthentication",
+        "chat.auth.tg_auth.TgIdAuthentication",
     ],
 }
 
-#-----TELEGRAM BOT SETTINGS ----
+# -----TELEGRAM BOT SETTINGS ----
 BOT_TOKEN = os.getenv("BOT_TOKEN", "")
 API_BASE = os.getenv("API_BASE", "http://localhost:8000/api")
 API_KEY = os.getenv("API_KEY", "")  # если добавите серверный общий секрет
