@@ -152,3 +152,9 @@ REST_FRAMEWORK = {
         "rest_framework.authentication.BasicAuthentication",
     ],
 }
+
+#-----TELEGRAM BOT SETTINGS ----
+BOT_TOKEN = os.getenv("BOT_TOKEN", "")
+API_BASE = os.getenv("API_BASE", "http://localhost:8000/api")
+API_KEY = os.getenv("API_KEY", "")  # если добавите серверный общий секрет
+TIMEOUT = 15.0
